@@ -1,6 +1,6 @@
 # Travelbot Flasher
 
-This project provides a Python-based application to flash a Samsung Galaxy J3 (SM-J320FN) with a minimal LineageOS ROM. The goal is to repurpose the device as a lightweight AI travel companion.
+This project provides a Python-based application to flash a Samsung Galaxy J3 (SM-J320FN) with a minimal LineageOS ROM. The GUI is built with **PyQt6** and lets you manage the flashing process through simple buttons.
 
 ## Features
 - Detects if the phone is connected via ADB
