@@ -153,7 +153,7 @@ def check_heimdall(text_widget=None):
 
 
 def detect_device(text_widget=None):
-    """Check if a device is in Download Mode via `heimdall detect`."""
+    """Run `heimdall detect` and verify a device is found."""
     try:
         result = subprocess.run(
             [HEIMDALL_NAME, 'detect'], capture_output=True, text=True, check=False
@@ -165,14 +165,17 @@ def detect_device(text_widget=None):
         )
         log('Heimdall command not found.', text_widget)
         return False
-    log(result.stdout.strip(), text_widget)
-    if result.returncode != 0:
+
+    output = (result.stdout + result.stderr).strip()
+    log(output, text_widget)
+
+    if result.returncode != 0 or 'Device detected' not in output:
         show_error(
             'Geen toestel',
-            '❌ Geen toestel gedetecteerd. Zorg dat je in Download Mode zit en met USB verbonden bent.',
+            '❌ Geen toestel gedetecteerd. Zorg dat je toestel in Download Mode staat en correct is verbonden via USB.',
         )
-        log(result.stderr.strip(), text_widget)
         return False
+
     return True
 
 
@@ -192,38 +195,52 @@ def download_twrp(text_widget=None):
     return TWRP_IMG
 
 
-def flash_recovery(img, text_widget=None):
-    """Flash the recovery image using Heimdall and log the output."""
-    log('⚡ Flashing TWRP...', text_widget)
+def run_flash(text_widget=None):
+    """Execute the Heimdall flash command and return its combined output."""
+    cmd = ['sudo', HEIMDALL_NAME, 'flash', '--RECOVERY', str(TWRP_IMG), '--no-reboot']
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
     with open(LOG_FILE, 'a') as log_fh:
-        result = subprocess.run(
-            [HEIMDALL_NAME, 'flash', '--RECOVERY', str(img), '--no-reboot'],
-            capture_output=True,
-            text=True,
-        )
         log_fh.write(result.stdout)
         log_fh.write(result.stderr)
-    if result.returncode != 0:
-        error_text = result.stderr.strip()
-        if 'protocol initialization' in error_text.lower() or 'protocol init' in error_text.lower():
-            error_text += '\n\nProbeer een andere USB-poort of run dit script met sudo.'
-        show_error('Flash Failed', error_text)
+
+    output = (result.stdout + result.stderr).strip()
+    log(output, text_widget)
+    return output
+
+
+def flash_recovery(text_widget=None, status_label=None):
+    """Flash TWRP after verifying the device is in Download Mode."""
+    if not detect_device(text_widget):
         return False
-    show_info(
-        'Action Required',
-        'Recovery flashed. Houd Power + Home + Volume Up ingedrukt om in TWRP te booten.',
-    )
-    return True
+
+    output = run_flash(text_widget)
+
+    if 'Protocol initialisation failed' in output:
+        tips = (
+            'Gebruik originele USB-datakabel\n'
+            '- Vermijd USB-hubs of adapters\n'
+            '- Gebruik een USB 2.0-poort\n'
+            '- Zorg dat toestel echt in Download Mode staat (Volume Down + Home + Power \u2192 Volume Up)\n'
+            '- Stop eventueel ModemManager op Linux: sudo systemctl stop ModemManager'
+        )
+        QMessageBox.warning(None, 'Heimdall Fout', f'Protocol initialisation failed\n\n{tips}')
+
+    if 'RECOVERY upload successful' in output and status_label:
+        status_label.setText('✅ Flash gelukt. Druk nu Power + Home + Volume Up in om naar TWRP te booten.')
+        status_label.setStyleSheet('color: green;')
+
+    return 'RECOVERY upload successful' in output
 
 
-def auto_flash_j3(text_widget=None):
+def auto_flash_j3(text_widget=None, status_label=None):
     """Run the full automatic flashing procedure for the SM-J320FN."""
     if not check_heimdall(text_widget):
         return
     if not detect_device(text_widget):
         return
-    img = download_twrp(text_widget)
-    flash_recovery(img, text_widget)
+    download_twrp(text_widget)
+    flash_recovery(text_widget, status_label)
 
 
 def adb_command(args):
@@ -316,6 +333,19 @@ def reboot_device(mode, text):
     adb_command(['reboot', mode])
 
 
+def stop_modemmanager(text_widget=None):
+    """Stop ModemManager service on Linux systems."""
+    if IS_WINDOWS:
+        return
+    result = subprocess.run(['sudo', 'systemctl', 'stop', 'ModemManager'], capture_output=True, text=True)
+    with open(LOG_FILE, 'a') as log_fh:
+        log_fh.write(result.stdout)
+        log_fh.write(result.stderr)
+    log(result.stdout.strip() or 'ModemManager stop command executed.', text_widget)
+    if result.returncode != 0:
+        log(result.stderr.strip(), text_widget)
+
+
 def open_log_file():
     if IS_WINDOWS:
         os.startfile(LOG_FILE)
@@ -335,7 +365,7 @@ def show_help():
     show_info('Help', INSTRUCTION_TEXT)
 
 
-def flash_recovery_only(text_widget):
+def flash_recovery_only(text_widget, status_label=None):
     try:
         ensure_adb(text_widget)
         if not device_connected():
@@ -345,20 +375,19 @@ def flash_recovery_only(text_widget):
         if not profile:
             log('Device profile not found.', text_widget)
             return
-        recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
-        download_file(profile['recovery_url'], recovery_img, text_widget)
+        download_file(profile['recovery_url'], TWRP_IMG, text_widget)
         show_info(
             'Download Mode',
             'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.'
         )
-        flash_recovery(str(recovery_img), text_widget)
+        flash_recovery(text_widget, status_label)
         log('Recovery flash complete.', text_widget)
     except Exception as exc:  # noqa: BLE001
         show_error('Error', str(exc))
         log(f'Error: {exc}', text_widget)
 
 
-def flash_process(text_widget, apk_path=None):
+def flash_process(text_widget, apk_path=None, status_label=None):
     try:
         ensure_adb(text_widget)
         if not device_connected():
@@ -368,7 +397,7 @@ def flash_process(text_widget, apk_path=None):
         if not profile:
             log('Device profile not found.', text_widget)
             return
-        recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
+        recovery_img = TWRP_IMG
         rom_zip = CACHE_DIR / Path(profile['rom_url']).name
         download_file(profile['recovery_url'], recovery_img, text_widget)
         download_file(profile['rom_url'], rom_zip, text_widget)
@@ -376,7 +405,7 @@ def flash_process(text_widget, apk_path=None):
             'Download Mode',
             'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.'
         )
-        flash_recovery(str(recovery_img), text_widget)
+        flash_recovery(text_widget, status_label)
         sideload_zip(str(rom_zip), text_widget)
         if apk_path:
             install_apk(apk_path, text_widget)
@@ -386,11 +415,11 @@ def flash_process(text_widget, apk_path=None):
         log(f'Error: {exc}', text_widget)
 
 
-def start_flash(text_widget, apk_path, progress):
+def start_flash(text_widget, apk_path, progress, status_label):
 
     def run():
         try:
-            flash_process(text_widget, apk_path)
+            flash_process(text_widget, apk_path, status_label)
         finally:
             progress.setRange(0, 1)
             progress.setVisible(False)
@@ -400,11 +429,11 @@ def start_flash(text_widget, apk_path, progress):
     threading.Thread(target=run, daemon=True).start()
 
 
-def start_flash_recovery(text_widget, progress):
+def start_flash_recovery(text_widget, progress, status_label):
 
     def run():
         try:
-            flash_recovery_only(text_widget)
+            flash_recovery_only(text_widget, status_label)
         finally:
             progress.setRange(0, 1)
             progress.setVisible(False)
@@ -414,11 +443,11 @@ def start_flash_recovery(text_widget, progress):
     threading.Thread(target=run, daemon=True).start()
 
 
-def start_auto_flash(text_widget, progress):
+def start_auto_flash(text_widget, progress, status_label):
 
     def run():
         try:
-            auto_flash_j3(text_widget)
+            auto_flash_j3(text_widget, status_label)
         finally:
             progress.setRange(0, 1)
             progress.setVisible(False)
@@ -478,15 +507,19 @@ class MainWindow(QWidget):
         self.progress.setVisible(False)
         layout.addWidget(self.progress)
 
+        self.status_label = QLabel('')
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
         buttons = [
             ('Detecteer Toestel', lambda: check_device(self.log_box)),
             ('Detect Download Mode', lambda: detect_device(self.log_box)),
             ('Check Heimdall', lambda: check_heimdall(self.log_box)),
             ('Install Tools', lambda: start_install_tools(self.log_box, self.progress)),
-            ('Auto Flash TWRP', lambda: start_auto_flash(self.log_box, self.progress)),
+            ('Auto Flash TWRP', lambda: start_auto_flash(self.log_box, self.progress, self.status_label)),
             ('Download ROM', lambda: download_rom(self.log_box)),
-            ('Flash TWRP', lambda: start_flash_recovery(self.log_box, self.progress)),
-            ('Flash LineageOS', lambda: start_flash(self.log_box, None, self.progress)),
+            ('Flash TWRP', lambda: start_flash_recovery(self.log_box, self.progress, self.status_label)),
+            ('Flash LineageOS', lambda: start_flash(self.log_box, None, self.progress, self.status_label)),
             ('Install APK', lambda: install_apk_prompt(self.log_box)),
             ('Reboot to Recovery', lambda: reboot_device('recovery', self.log_box)),
             ('Reboot System', lambda: reboot_device('system', self.log_box)),
@@ -494,6 +527,9 @@ class MainWindow(QWidget):
             ('Clear Log', lambda: clear_log(self.log_box)),
             ('Help', show_help),
         ]
+
+        if not IS_WINDOWS:
+            buttons.insert(-2, ('Stop ModemManager', lambda: stop_modemmanager(self.log_box)))
 
         for text, func in buttons:
             btn = QPushButton(text)
