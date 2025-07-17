@@ -1,41 +1,58 @@
-import argparse
 import json
 import logging
 import os
 import platform
 import shutil
 import subprocess
-import sys
+import threading
 import zipfile
 from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext, Tk, END, ttk
 
-import questionary
 import requests
 
 CONFIG_FILE = 'device_config.json'
 CACHE_DIR = Path('cache')
+LOG_FILE = 'flasher.log'
+
+INSTRUCTION_TEXT = (
+    "1. Enable USB debugging and OEM unlock in Developer Options.\n"
+    "2. Boot the phone into Download Mode (Power+Home+Vol Down, then Vol Up).\n"
+    "3. Connect the phone and click 'Check Device'.\n"
+    "4. Use 'Install Tools' to download ADB and install Heimdall if needed.\n"
+    "5. To flash only TWRP, click 'Flash Recovery Only'.\n"
+    "6. For the full flash, optionally pick an APK and press 'Flash All'.\n"
+    "7. Progress appears below and in flasher.log.\n"
+)
 
 IS_WINDOWS = platform.system().lower() == 'windows'
 ADB_NAME = 'adb.exe' if IS_WINDOWS else 'adb'
-FASTBOOT_NAME = 'fastboot.exe' if IS_WINDOWS else 'fastboot'
+HEIMDALL_NAME = 'heimdall.exe' if IS_WINDOWS else 'heimdall'
 
-LOG_FILE = 'flasher.log'
-logging.basicConfig(filename=LOG_FILE,
-                    level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-def log_and_print(message):
-    print(message)
+
+def log(message, text_widget=None):
     logging.info(message)
+    print(message)
+    if text_widget:
+        text_widget.insert(END, message + '\n')
+        text_widget.see(END)
+
 
 def check_tool(name):
-    path = shutil.which(name)
-    return path if path else None
+    return shutil.which(name)
 
-def download_platform_tools():
+
+def download_platform_tools(text):
     system = 'windows' if IS_WINDOWS else 'linux'
     url = f'https://dl.google.com/android/repository/platform-tools-latest-{system}.zip'
-    log_and_print(f'Downloading platform tools from {url}')
+    log(f'Downloading platform tools from {url}', text)
     resp = requests.get(url, stream=True)
     if resp.status_code != 200:
         raise RuntimeError('Failed to download platform tools')
@@ -43,38 +60,50 @@ def download_platform_tools():
     with open(zpath, 'wb') as fh:
         for chunk in resp.iter_content(chunk_size=8192):
             fh.write(chunk)
-    log_and_print('Extracting platform tools...')
+    log('Extracting platform tools...', text)
     with zipfile.ZipFile(zpath, 'r') as zip_ref:
         zip_ref.extractall('.')
     zpath.unlink()
     if not IS_WINDOWS:
         os.chmod('platform-tools/adb', 0o755)
-        os.chmod('platform-tools/fastboot', 0o755)
+    log('Platform tools ready.', text)
 
 
-def ensure_tools():
+def ensure_adb(text):
     adb = check_tool(ADB_NAME)
-    fastboot = check_tool(FASTBOOT_NAME)
-    if not adb or not fastboot:
-        local_adb = Path('platform-tools') / ADB_NAME
-        local_fb = Path('platform-tools') / FASTBOOT_NAME
-        if local_adb.exists() and local_fb.exists():
-            log_and_print('Using local platform-tools binaries')
-            return
-        log_and_print('ADB/Fastboot not found, downloading platform tools...')
-        download_platform_tools()
-    else:
-        log_and_print('ADB and Fastboot found')
+    if adb:
+        log('ADB found on system.', text)
+        return
+    local_adb = Path('platform-tools') / ADB_NAME
+    if local_adb.exists():
+        log('Using local platform-tools binaries.', text)
+        return
+    log('ADB not found, downloading platform tools...', text)
+    download_platform_tools(text)
+
+
+def ensure_heimdall(text):
+    if check_tool(HEIMDALL_NAME):
+        log('Heimdall found.', text)
+        return True
+    log('Heimdall not found.', text)
+    if not IS_WINDOWS:
+        if messagebox.askyesno('Install Heimdall',
+                               'Heimdall is missing. Install via apt? (sudo required)'):
+            try:
+                subprocess.run(['sudo', 'apt', 'install', '-y', 'heimdall-flash'], check=False)
+            except Exception as exc:  # noqa: BLE001
+                log(f'Failed to run apt: {exc}', text)
+    if check_tool(HEIMDALL_NAME):
+        log('Heimdall installed.', text)
+        return True
+    log('Please install Heimdall manually (or use Odin on Windows).', text)
+    return False
 
 
 def adb_command(args):
     adb_path = check_tool(ADB_NAME) or str(Path('platform-tools') / ADB_NAME)
-    return subprocess.run([str(adb_path)] + args, capture_output=True, text=True)
-
-
-def fastboot_command(args):
-    fb_path = check_tool(FASTBOOT_NAME) or str(Path('platform-tools') / FASTBOOT_NAME)
-    return subprocess.run([str(fb_path)] + args, capture_output=True, text=True)
+    return subprocess.run([adb_path] + args, capture_output=True, text=True)
 
 
 def device_connected():
@@ -84,32 +113,20 @@ def device_connected():
     return len(devices) > 0
 
 
-def detect_device():
-    model = adb_command(['shell', 'getprop', 'ro.product.model']).stdout.strip()
-    if not model:
-        model = adb_command(['shell', 'getprop', 'ro.product.device']).stdout.strip()
-    log_and_print(f'Detected device model: {model}')
-    return model
-
-
-def load_device_profile(model):
+def load_profile():
     if not Path(CONFIG_FILE).exists():
-        log_and_print(f'Config file {CONFIG_FILE} not found')
         return None
     with open(CONFIG_FILE, 'r') as fh:
         data = json.load(fh)
-    profile = data.get(model)
-    if not profile:
-        log_and_print(f'No configuration for {model} in {CONFIG_FILE}')
-    return profile
+    return data.get('SM-J320FN')
 
 
-def download_file(url, dest):
+def download_file(url, dest, text):
     CACHE_DIR.mkdir(exist_ok=True)
     if dest.exists():
-        log_and_print(f'{dest} already exists, skipping download')
+        log(f'{dest} already exists, skipping download', text)
         return
-    log_and_print(f'Downloading {url}')
+    log(f'Downloading {url}', text)
     resp = requests.get(url, stream=True)
     if resp.status_code != 200:
         raise RuntimeError(f'Failed to download {url}')
@@ -118,99 +135,206 @@ def download_file(url, dest):
             fh.write(chunk)
 
 
-def flash_recovery(recovery_img):
-    log_and_print('Flashing recovery...')
-    adb_command(['reboot', 'bootloader'])
-    fastboot_command(['flash', 'recovery', recovery_img])
-    fastboot_command(['reboot'])
+def flash_recovery(img, text):
+    if IS_WINDOWS:
+        messagebox.showinfo(
+            'Windows Detected',
+            'Please use Odin to flash the recovery image manually.'
+        )
+        return
+    if not ensure_heimdall(text):
+        return
+    log('Flashing TWRP recovery...', text)
+    subprocess.run([HEIMDALL_NAME, 'flash', '--RECOVERY', img, '--no-reboot'])
+    messagebox.showinfo('Action Required',
+                        'Recovery flashed. Boot the phone into recovery now (Vol+ Home Power).')
 
 
-def sideload_zip(zip_path):
-    log_and_print('Sideloading ROM...')
+def sideload_zip(zip_path, text):
+    log('Sideloading LineageOS...', text)
     adb_command(['reboot', 'recovery'])
     adb_command(['wait-for-device'])
-    adb_command(['sideload', zip_path])
+    subprocess.run([ADB_NAME, 'sideload', zip_path])
 
 
-def install_apk(apk_path):
-    log_and_print(f'Installing APK {apk_path}')
-    adb_command(['install', apk_path])
+def install_tools(text_widget):
+    try:
+        ensure_adb(text_widget)
+        ensure_heimdall(text_widget)
+        log('Tool installation complete.', text_widget)
+    except Exception as exc:  # noqa: BLE001
+        messagebox.showerror('Error', str(exc))
+        log(f'Error: {exc}', text_widget)
 
 
-def bootloader_unlocked():
-    log_and_print('Checking bootloader status...')
-    adb_command(['reboot', 'bootloader'])
-    result = fastboot_command(['oem', 'device-info'])
-    fastboot_command(['reboot'])
-    output = (result.stdout + result.stderr).lower()
-    if 'unlocked: yes' in output or 'device unlocked: true' in output:
-        log_and_print('Bootloader is unlocked.')
-        return True
-    log_and_print('Bootloader is locked. Please unlock it before flashing.')
-    return False
+def check_tools(text_widget):
+    ensure_adb(text_widget)
+    ensure_heimdall(text_widget)
 
 
-def clean_cache():
-    if CACHE_DIR.exists():
-        shutil.rmtree(CACHE_DIR)
-        log_and_print('Cache directory removed.')
+def install_apk(apk, text):
+    log(f'Installing APK {apk}', text)
+    subprocess.run([ADB_NAME, 'install', apk])
+
+
+def reboot_device(mode, text):
+    log(f'Rebooting to {mode}...', text)
+    adb_command(['reboot', mode])
+
+
+def open_log_file():
+    if IS_WINDOWS:
+        os.startfile(LOG_FILE)
+    elif shutil.which('xdg-open'):
+        subprocess.run(['xdg-open', LOG_FILE], check=False)
+    else:
+        messagebox.showinfo('Log File', f'Log located at {LOG_FILE}')
+
+
+def clear_log(text_widget):
+    text_widget.delete('1.0', END)
+    Path(LOG_FILE).write_text('')
+    log('Log cleared.', text_widget)
+
+
+def show_help():
+    win = tk.Toplevel()
+    win.title('Help')
+    ttk.Label(win, text=INSTRUCTION_TEXT, justify='left', wraplength=400).pack(padx=10, pady=10)
+
+
+def flash_recovery_only(text_widget):
+    try:
+        ensure_adb(text_widget)
+        if not device_connected():
+            log('No device detected via ADB.', text_widget)
+            return
+        profile = load_profile()
+        if not profile:
+            log('Device profile not found.', text_widget)
+            return
+        recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
+        download_file(profile['recovery_url'], recovery_img, text_widget)
+        messagebox.showinfo('Download Mode',
+                            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.')
+        flash_recovery(str(recovery_img), text_widget)
+        log('Recovery flash complete.', text_widget)
+    except Exception as exc:  # noqa: BLE001
+        messagebox.showerror('Error', str(exc))
+        log(f'Error: {exc}', text_widget)
+
+
+def flash_process(text_widget, apk_path=None):
+    try:
+        ensure_adb(text_widget)
+        if not device_connected():
+            log('No device detected via ADB.', text_widget)
+            return
+        profile = load_profile()
+        if not profile:
+            log('Device profile not found.', text_widget)
+            return
+        recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
+        rom_zip = CACHE_DIR / Path(profile['rom_url']).name
+        download_file(profile['recovery_url'], recovery_img, text_widget)
+        download_file(profile['rom_url'], rom_zip, text_widget)
+        messagebox.showinfo('Download Mode',
+                            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.')
+        flash_recovery(str(recovery_img), text_widget)
+        sideload_zip(str(rom_zip), text_widget)
+        if apk_path:
+            install_apk(apk_path, text_widget)
+        log('Flashing complete.', text_widget)
+    except Exception as exc:  # noqa: BLE001
+        messagebox.showerror('Error', str(exc))
+        log(f'Error: {exc}', text_widget)
+
+
+def start_flash(text_widget, apk_var, progress):
+    apk_path = apk_var.get() if apk_var.get() else None
+
+    def run():
+        try:
+            flash_process(text_widget, apk_path)
+        finally:
+            progress.stop()
+
+    progress.start()
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_flash_recovery(text_widget, progress):
+
+    def run():
+        try:
+            flash_recovery_only(text_widget)
+        finally:
+            progress.stop()
+
+    progress.start()
+    threading.Thread(target=run, daemon=True).start()
+
+
+def start_install_tools(text_widget, progress):
+
+    def run():
+        try:
+            install_tools(text_widget)
+        finally:
+            progress.stop()
+
+    progress.start()
+    threading.Thread(target=run, daemon=True).start()
+
+
+def check_device(text_widget):
+    ensure_adb(text_widget)
+    if device_connected():
+        log('Device detected!', text_widget)
+    else:
+        log('No device found.', text_widget)
+
+
+def select_apk(var):
+    path = filedialog.askopenfilename(filetypes=[('APK files', '*.apk')])
+    if path:
+        var.set(path)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Travelbot Flasher')
-    parser.add_argument('--flash', action='store_true', help='Flash LineageOS')
-    parser.add_argument('--apk', help='Optional APK to install')
-    parser.add_argument('--root', action='store_true', help='Install Magisk for root')
-    parser.add_argument('--clean', action='store_true', help='Clean cache after flashing')
-    args = parser.parse_args()
+    root = Tk()
+    root.title('Travelbot Flasher')
+    style = ttk.Style(root)
+    if 'clam' in style.theme_names():
+        style.theme_use('clam')
+    style.configure('TButton', font=('Helvetica', 10), padding=6)
+    style.configure('TLabel', font=('Helvetica', 10))
+    root.configure(padx=10, pady=10)
+    root.resizable(False, False)
 
-    ensure_tools()
+    ttk.Label(root, text=INSTRUCTION_TEXT, justify='left').pack(padx=10, pady=5)
 
-    if not device_connected():
-        log_and_print('Phone not found. Is USB debugging enabled?')
-        sys.exit(1)
+    log_box = scrolledtext.ScrolledText(root, width=80, height=20)
+    log_box.pack(padx=10, pady=10)
 
-    if not any([args.flash, args.root, args.apk]):
-        choices = questionary.checkbox(
-            'Select actions to perform',
-            choices=[
-                questionary.Choice('Flash LineageOS', 'flash'),
-                questionary.Choice('Install Magisk (root)', 'root'),
-                questionary.Choice('Install APK', 'apk'),
-                questionary.Choice('Clean cache after flashing', 'clean'),
-            ],
-        ).ask()
-        args.flash = 'flash' in choices
-        args.root = 'root' in choices
-        args.clean = 'clean' in choices
-        if 'apk' in choices:
-            args.apk = questionary.path('Path to APK').ask()
+    progress = ttk.Progressbar(root, mode='indeterminate')
+    progress.pack(fill='x', padx=10, pady=5)
 
-    model = detect_device()
-    profile = load_device_profile(model)
-    if not profile:
-        sys.exit(1)
+    apk_var = tk.StringVar()
+    ttk.Button(root, text='Check Device', command=lambda: check_device(log_box)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Check Tools', command=lambda: check_tools(log_box)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Install Tools', command=lambda: start_install_tools(log_box, progress)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Flash Recovery Only', command=lambda: start_flash_recovery(log_box, progress)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Select APK', command=lambda: select_apk(apk_var)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Flash All', command=lambda: start_flash(log_box, apk_var, progress)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Reboot to Recovery', command=lambda: reboot_device('recovery', log_box)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Reboot System', command=lambda: reboot_device('system', log_box)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Open Log', command=open_log_file).pack(fill='x', pady=2)
+    ttk.Button(root, text='Clear Log', command=lambda: clear_log(log_box)).pack(fill='x', pady=2)
+    ttk.Button(root, text='Help', command=show_help).pack(fill='x', pady=2)
 
-    if not bootloader_unlocked():
-        sys.exit('Please unlock the bootloader and run the script again.')
+    root.mainloop()
 
-    if args.flash:
-        recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
-        rom_zip = CACHE_DIR / Path(profile['rom_url']).name
-        download_file(profile['recovery_url'], recovery_img)
-        download_file(profile['rom_url'], rom_zip)
-        flash_recovery(str(recovery_img))
-        sideload_zip(str(rom_zip))
-        if args.root and profile.get('magisk_url'):
-            magisk_zip = CACHE_DIR / Path(profile['magisk_url']).name
-            download_file(profile['magisk_url'], magisk_zip)
-            sideload_zip(str(magisk_zip))
-    if args.apk:
-        install_apk(args.apk)
-
-    log_and_print('Operations complete!')
-    if args.clean:
-        clean_cache()
 
 if __name__ == '__main__':
     main()
