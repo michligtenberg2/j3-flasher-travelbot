@@ -13,3 +13,15 @@
 2025-07-17 16:59:25,530 - INFO - Downloading https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img
 2025-07-17 16:59:25,651 - INFO - Downloading https://download.lineage.microg.org/j3xnlte/lineage-18.1-20230419-microG-j3xnlte.zip
 2025-07-17 16:59:31,566 - INFO - Error: Failed to download https://download.lineage.microg.org/j3xnlte/lineage-18.1-20230419-microG-j3xnlte.zip
+2025-07-17 17:12:53,800 - INFO - Using local platform-tools binaries.
+2025-07-17 17:12:53,804 - INFO - Device detected!
+2025-07-17 17:12:58,579 - INFO - Using local platform-tools binaries.
+2025-07-17 17:12:58,580 - INFO - Heimdall not found. Please install Heimdall (or Odin on Windows).
+2025-07-17 17:13:02,575 - INFO - Using local platform-tools binaries.
+2025-07-17 17:13:02,575 - INFO - Heimdall not found. Please install Heimdall (or Odin on Windows).
+2025-07-17 17:13:02,576 - INFO - Tool installation complete.
+2025-07-17 17:13:54,020 - INFO - Using local platform-tools binaries.
+2025-07-17 17:13:54,021 - INFO - Heimdall found.
+2025-07-17 17:14:02,185 - INFO - Using local platform-tools binaries.
+2025-07-17 17:14:02,187 - INFO - Heimdall found.
+2025-07-17 17:14:02,187 - INFO - Tool installation complete.
