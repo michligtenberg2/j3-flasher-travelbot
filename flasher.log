@@ -1,0 +1,15 @@
+2025-07-17 16:57:57,003 - INFO - ADB not found, downloading platform tools...
+2025-07-17 16:57:57,005 - INFO - Downloading platform tools from https://dl.google.com/android/repository/platform-tools-latest-linux.zip
+2025-07-17 16:57:58,388 - INFO - Extracting platform tools...
+2025-07-17 16:57:58,517 - INFO - Platform tools ready.
+2025-07-17 16:58:01,648 - INFO - Device detected!
+2025-07-17 16:58:05,791 - INFO - Using local platform-tools binaries.
+2025-07-17 16:58:05,797 - INFO - Device detected!
+2025-07-17 16:58:19,340 - INFO - Using local platform-tools binaries.
+2025-07-17 16:58:19,346 - INFO - No device found.
+2025-07-17 16:58:24,489 - INFO - Using local platform-tools binaries.
+2025-07-17 16:58:24,495 - INFO - Device detected!
+2025-07-17 16:59:25,522 - INFO - Using local platform-tools binaries.
+2025-07-17 16:59:25,530 - INFO - Downloading https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img
+2025-07-17 16:59:25,651 - INFO - Downloading https://download.lineage.microg.org/j3xnlte/lineage-18.1-20230419-microG-j3xnlte.zip
+2025-07-17 16:59:31,566 - INFO - Error: Failed to download https://download.lineage.microg.org/j3xnlte/lineage-18.1-20230419-microG-j3xnlte.zip
