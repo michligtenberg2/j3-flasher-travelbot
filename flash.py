@@ -195,23 +195,46 @@ def download_twrp(text_widget=None):
 def flash_recovery(img, text_widget=None):
     """Flash the recovery image using Heimdall and log the output."""
     log('⚡ Flashing TWRP...', text_widget)
+    cmd = [HEIMDALL_NAME, 'flash', '--RECOVERY', str(img), '--no-reboot']
+    output_lines = []
     with open(LOG_FILE, 'a') as log_fh:
-        result = subprocess.run(
-            [HEIMDALL_NAME, 'flash', '--RECOVERY', str(img), '--no-reboot'],
-            capture_output=True,
-            text=True,
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
-        log_fh.write(result.stdout)
-        log_fh.write(result.stderr)
-    if result.returncode != 0:
-        error_text = result.stderr.strip()
-        if 'protocol initialization' in error_text.lower() or 'protocol init' in error_text.lower():
-            error_text += '\n\nProbeer een andere USB-poort of run dit script met sudo.'
+        for line in process.stdout:
+            line = line.strip()
+            output_lines.append(line)
+            log(line, text_widget)
+            log_fh.write(line + '\n')
+        process.wait()
+
+    output_text = '\n'.join(output_lines)
+    if process.returncode != 0:
+        error_text = output_text
+        if (
+            'protocol initialisation failed' in error_text.lower()
+            or 'failed to receive session end confirmation' in error_text.lower()
+        ):
+            error_text += (
+                '\n\nGebruik een originele USB-datakabel.\n'
+                'Vermijd USB-hubs, zet het toestel opnieuw in Download Mode\n'
+                'en stop eventueel ModemManager: `sudo systemctl stop ModemManager`'
+            )
         show_error('Flash Failed', error_text)
         return False
+
+    if 'RECOVERY upload successful' not in output_text:
+        show_error('Flash Failed', output_text)
+        return False
+
     show_info(
-        'Action Required',
-        'Recovery flashed. Houd Power + Home + Volume Up ingedrukt om in TWRP te booten.',
+        'TWRP Geflasht',
+        (
+            '✅ TWRP succesvol geflasht!\n\n'
+            '⚠️ BELANGRIJK: Houd nu Power + Home + Volume Up ingedrukt totdat '
+            'het Samsung-logo verschijnt om direct in TWRP te booten. Doe dit '
+            'voordat het toestel normaal opstart, anders wordt TWRP overschreven.'
+        ),
     )
     return True
 
@@ -224,6 +247,19 @@ def auto_flash_j3(text_widget=None):
         return
     img = download_twrp(text_widget)
     flash_recovery(img, text_widget)
+
+
+def flash_twrp_gui(text_widget=None):
+    """Flash TWRP for the J3 using Heimdall and guide the user."""
+    if not check_heimdall(text_widget):
+        return
+    if not detect_device(text_widget):
+        return
+    if not TWRP_IMG.exists():
+        show_error('Bestand ontbreekt', f'{TWRP_IMG} niet gevonden in de werkmap')
+        log('TWRP image missing', text_widget)
+        return
+    flash_recovery(TWRP_IMG, text_widget)
 
 
 def adb_command(args):
@@ -404,7 +440,7 @@ def start_flash_recovery(text_widget, progress):
 
     def run():
         try:
-            flash_recovery_only(text_widget)
+            flash_twrp_gui(text_widget)
         finally:
             progress.setRange(0, 1)
             progress.setVisible(False)
