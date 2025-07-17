@@ -279,9 +279,30 @@ def check_tools(text_widget):
     ensure_heimdall(text_widget)
 
 
+def download_rom(text_widget):
+    """Download only the LineageOS ROM."""
+    try:
+        profile = load_profile()
+        if not profile:
+            log('Device profile not found.', text_widget)
+            return
+        rom_zip = CACHE_DIR / Path(profile['rom_url']).name
+        download_file(profile['rom_url'], rom_zip, text_widget)
+        log('ROM download complete.', text_widget)
+    except Exception as exc:  # noqa: BLE001
+        show_error('Error', str(exc))
+        log(f'Error: {exc}', text_widget)
+
+
 def install_apk(apk, text):
     log(f'Installing APK {apk}', text)
     subprocess.run([ADB_NAME, 'install', apk])
+
+
+def install_apk_prompt(text_widget):
+    path = filedialog.askopenfilename(filetypes=[('APK files', '*.apk')])
+    if path:
+        install_apk(path, text_widget)
 
 
 def reboot_device(mode, text):
@@ -415,45 +436,44 @@ def check_device(text_widget):
         log('No device found.', text_widget)
 
 
-def select_apk(var):
-    path = filedialog.askopenfilename(filetypes=[('APK files', '*.apk')])
-    if path:
-        var.set(path)
 
 
 def main():
     root = Tk()
-    root.title('Travelbot Flasher')
+    root.title('📱 Travelbot Flasher')
+    root.minsize(600, 400)
+    root.configure(bg='#E6E6FA')
+    root.option_add('*Font', 'Helvetica 12')
+
     style = ttk.Style(root)
     if 'clam' in style.theme_names():
         style.theme_use('clam')
-    style.configure('TButton', font=('Helvetica', 10), padding=6)
-    style.configure('TLabel', font=('Helvetica', 10))
-    root.configure(padx=10, pady=10)
-    root.resizable(False, False)
+    style.configure('TFrame', background='#E6E6FA')
+    style.configure('TLabel', background='#E6E6FA', foreground='#000033')
+    style.configure('TButton', font=('Helvetica', 12), padding=6)
 
-    ttk.Label(root, text=INSTRUCTION_TEXT, justify='left').pack(padx=10, pady=5)
+    frame = ttk.Frame(root, padding=10)
+    frame.pack(fill='both', expand=True)
 
-    log_box = scrolledtext.ScrolledText(root, width=80, height=20)
-    log_box.pack(padx=10, pady=10)
+    ttk.Label(frame, text='📱 Travelbot Flasher', font=('Helvetica', 16, 'bold')).pack(pady=(0, 10))
+    ttk.Label(frame, text=INSTRUCTION_TEXT, justify='left', wraplength=560).pack(pady=(0, 10))
 
-    progress = ttk.Progressbar(root, mode='indeterminate')
-    progress.pack(fill='x', padx=10, pady=5)
+    log_box = scrolledtext.ScrolledText(frame, height=10)
+    log_box.pack(fill='both', expand=True, pady=10)
 
-    apk_var = tk.StringVar()
+    progress = ttk.Progressbar(frame, mode='indeterminate')
+    progress.pack(fill='x', pady=5)
 
-    ttk.Button(root, text='Auto Flash TWRP', command=lambda: start_auto_flash(log_box, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Check Device', command=lambda: check_device(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Check Tools', command=lambda: check_tools(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Install Tools', command=lambda: start_install_tools(log_box, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Flash Recovery Only', command=lambda: start_flash_recovery(log_box, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Select APK', command=lambda: select_apk(apk_var)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Flash All', command=lambda: start_flash(log_box, apk_var.get() if apk_var.get() else None, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Reboot to Recovery', command=lambda: reboot_device('recovery', log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Reboot System', command=lambda: reboot_device('system', log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Open Log', command=open_log_file).pack(fill='x', pady=2)
-    ttk.Button(root, text='Clear Log', command=lambda: clear_log(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Help', command=show_help).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Detecteer Toestel', command=lambda: check_device(log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Download ROM', command=lambda: download_rom(log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Flash TWRP', command=lambda: start_flash_recovery(log_box, progress)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Flash LineageOS', command=lambda: start_flash(log_box, None, progress)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Install APK', command=lambda: install_apk_prompt(log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Reboot to Recovery', command=lambda: reboot_device('recovery', log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Reboot System', command=lambda: reboot_device('system', log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Open Log', command=open_log_file).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Clear Log', command=lambda: clear_log(log_box)).pack(fill='x', pady=2)
+    ttk.Button(frame, text='Help', command=show_help).pack(fill='x', pady=2)
 
     root.mainloop()
 
