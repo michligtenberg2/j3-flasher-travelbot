@@ -27,15 +27,18 @@ import requests
 CONFIG_FILE = 'device_config.json'
 CACHE_DIR = Path('cache')
 LOG_FILE = 'flasher.log'
+TWRP_URL = 'https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img'
+TWRP_IMG = Path('twrp-j3lte.img')
 
 INSTRUCTION_TEXT = (
     "1. Enable USB debugging and OEM unlock in Developer Options.\n"
     "2. Boot the phone into Download Mode (Power+Home+Vol Down, then Vol Up).\n"
     "3. Connect the phone and click 'Check Device'.\n"
     "4. Use 'Install Tools' to download ADB and install Heimdall if needed.\n"
-    "5. To flash only TWRP, click 'Flash Recovery Only'.\n"
-    "6. For the full flash, optionally pick an APK and press 'Flash All'.\n"
-    "7. Progress appears below and in flasher.log.\n"
+    "5. Use 'Auto Flash TWRP' for a quick recovery flash.\n"
+    "6. To flash only TWRP manually, click 'Flash Recovery Only'.\n"
+    "7. For the full flash, optionally pick an APK and press 'Flash All'.\n"
+    "8. Progress appears below and in flasher.log.\n"
 )
 
 IS_WINDOWS = platform.system().lower() == 'windows'
@@ -132,6 +135,101 @@ def ensure_heimdall(text):
     return False
 
 
+def check_heimdall(text_widget=None):
+    """Verify that Heimdall is installed by calling `heimdall version`."""
+    try:
+        result = subprocess.run(
+            [HEIMDALL_NAME, 'version'], capture_output=True, text=True, check=False
+        )
+    except FileNotFoundError:
+        show_error(
+            'Heimdall Missing',
+            'Heimdall is not installed. Please install it with `sudo apt install heimdall-flash`',
+        )
+        log('Heimdall command not found.', text_widget)
+        return False
+    if result.returncode != 0:
+        show_error(
+            'Heimdall Missing',
+            'Heimdall is not installed. Please install it with `sudo apt install heimdall-flash`',
+        )
+        log(result.stderr.strip(), text_widget)
+        return False
+    log(result.stdout.strip(), text_widget)
+    return True
+
+
+def detect_device(text_widget=None):
+    """Check if a device is in Download Mode via `heimdall detect`."""
+    try:
+        result = subprocess.run(
+            [HEIMDALL_NAME, 'detect'], capture_output=True, text=True, check=False
+        )
+    except FileNotFoundError:
+        show_error(
+            'Heimdall Missing',
+            'Heimdall is not installed. Please install it with `sudo apt install heimdall-flash`',
+        )
+        log('Heimdall command not found.', text_widget)
+        return False
+    log(result.stdout.strip(), text_widget)
+    if result.returncode != 0:
+        show_error(
+            'Geen toestel',
+            '❌ Geen toestel gedetecteerd. Zorg dat je in Download Mode zit en met USB verbonden bent.',
+        )
+        log(result.stderr.strip(), text_widget)
+        return False
+    return True
+
+
+def download_twrp(text_widget=None):
+    """Download the TWRP image if it's missing."""
+    if TWRP_IMG.exists():
+        log(f'{TWRP_IMG} already present.', text_widget)
+        return TWRP_IMG
+    log(f'Downloading TWRP from {TWRP_URL}', text_widget)
+    response = requests.get(TWRP_URL, stream=True)
+    if response.status_code != 200:
+        raise RuntimeError('Failed to download TWRP image')
+    with open(TWRP_IMG, 'wb') as fh:
+        for chunk in response.iter_content(chunk_size=8192):
+            fh.write(chunk)
+    log('TWRP download complete.', text_widget)
+    return TWRP_IMG
+
+
+def flash_recovery(img, text_widget=None):
+    """Flash the recovery image using Heimdall and log the output."""
+    log('⚡ Flashing TWRP...', text_widget)
+    with open(LOG_FILE, 'a') as log_fh:
+        result = subprocess.run(
+            [HEIMDALL_NAME, 'flash', '--RECOVERY', str(img), '--no-reboot'],
+            capture_output=True,
+            text=True,
+        )
+        log_fh.write(result.stdout)
+        log_fh.write(result.stderr)
+    if result.returncode != 0:
+        show_error('Flash Failed', result.stderr.strip())
+        return False
+    show_info(
+        'Action Required',
+        'Recovery flashed. Houd Power + Home + Volume Up ingedrukt om in TWRP te booten.',
+    )
+    return True
+
+
+def auto_flash_j3(text_widget=None):
+    """Run the full automatic flashing procedure for the SM-J320FN."""
+    if not check_heimdall(text_widget):
+        return
+    if not detect_device(text_widget):
+        return
+    img = download_twrp(text_widget)
+    flash_recovery(img, text_widget)
+
+
 def adb_command(args):
     adb_path = check_tool(ADB_NAME) or str(Path('platform-tools') / ADB_NAME)
     return subprocess.run([adb_path] + args, capture_output=True, text=True)
@@ -166,21 +264,6 @@ def download_file(url, dest, text):
             fh.write(chunk)
 
 
-def flash_recovery(img, text):
-    if IS_WINDOWS:
-        show_info(
-            'Windows Detected',
-            'Please use Odin to flash the recovery image manually.'
-        )
-        return
-    if not ensure_heimdall(text):
-        return
-    log('Flashing TWRP recovery...', text)
-    subprocess.run([HEIMDALL_NAME, 'flash', '--RECOVERY', img, '--no-reboot'])
-    show_info(
-        'Action Required',
-        'Recovery flashed. Boot the phone into recovery now (Vol+ Home Power).'
-    )
 
 
 def sideload_zip(zip_path, text):
@@ -309,6 +392,18 @@ def start_flash_recovery(text_widget, progress):
     threading.Thread(target=run, daemon=True).start()
 
 
+def start_auto_flash(text_widget, progress):
+
+    def run():
+        try:
+            auto_flash_j3(text_widget)
+        finally:
+            QTimer.singleShot(0, lambda: progress.setVisible(False))
+
+    progress.setVisible(True)
+    threading.Thread(target=run, daemon=True).start()
+
+
 def start_install_tools(text_widget, progress):
 
     def run():
@@ -355,6 +450,10 @@ class MainWindow(QWidget):
         layout.addWidget(self.progress)
 
         self.apk_path = [None]
+
+        btn_auto_flash = QPushButton('Auto Flash TWRP')
+        btn_auto_flash.clicked.connect(lambda: start_auto_flash(self.log_box, self.progress))
+        layout.addWidget(btn_auto_flash)
 
         btn_check_device = QPushButton('Check Device')
         btn_check_device.clicked.connect(lambda: check_device(self.log_box))
