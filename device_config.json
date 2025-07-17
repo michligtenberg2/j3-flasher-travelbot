@@ -1,0 +1,8 @@
+{
+  "SM-J320FN": {
+    "device": "j3xnlte",
+    "recovery_url": "https://example.com/twrp.img",
+    "rom_url": "https://example.com/lineage.zip",
+    "magisk_url": "https://example.com/magisk.zip"
+  }
+}
