@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Frequent issues - FRP Lock oplossen</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="frequent-issues.html" class="active">Frequent issues</a>
+  </nav>
+  <div class="container">
+    <h1>🔓 FRP Lock oplossen (Samsung Galaxy J3 - SM-J320FN)</h1>
+    <p>Als je bij het flashen van TWRP deze foutmelding ziet:</p>
+    <blockquote>❌ "Custom Binary blocked by FRP Lock"</blockquote>
+    <p>Dan blokkeert Samsung de installatie van aangepaste software. Dit komt door <strong>Factory Reset Protection (FRP)</strong>. Hieronder lees je hoe je dit oplost.</p>
+    <h2>✅ Stap-voor-stap: FRP Lock uitschakelen</h2>
+
+    <div class="step">
+      <h3 class="toggle">1. Zet <strong>OEM Unlock</strong> aan</h3>
+      <ol>
+        <li>Ga op je huidige Android-installatie naar:<br>Instellingen → Over de telefoon → Software-informatie</li>
+        <li>Tik 7x op <strong>Buildnummer</strong> om ontwikkelaarsopties te activeren</li>
+        <li>Ga terug naar:<br>Instellingen → Ontwikkelaarsopties</li>
+        <li>Zet <strong>OEM-ontgrendeling</strong> aan</li>
+      </ol>
+      <p class="note">ℹ️ Zie je deze optie niet? Zorg dat het toestel verbonden is met WiFi en wacht eventueel enkele dagen (soms 7 dagen na reset vereist).</p>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">2. Verwijder je <strong>Google-account</strong></h3>
+      <ul>
+        <li>Ga naar:<br><code>Instellingen → Accounts → Google → Verwijderen</code></li>
+        <li>Zet ook je schermvergrendeling uit bij<br><code>Instellingen → Beveiliging → Schermvergrendeling</code></li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">3. Zet toestel opnieuw in Download Mode</h3>
+      <ul>
+        <li>Zet je toestel uit</li>
+        <li>Houd <strong>Volume omlaag + Home + Power</strong> ingedrukt</li>
+        <li>Druk daarna op <strong>Volume omhoog</strong> om verder te gaan</li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">4. Flash TWRP opnieuw</h3>
+      <p>Gebruik je flashtool of het volgende commando:</p>
+      <pre><code>heimdall flash --RECOVERY twrp-j3lte.img --no-reboot</code></pre>
+    </div>
+
+    <div class="info">
+      <p><strong>ℹ️ Wat is FRP?</strong></p>
+      <p>FRP (Factory Reset Protection) voorkomt dat een toestel opnieuw gebruikt wordt zonder toestemming van de vorige eigenaar. Het is bedoeld als antidiefstalbeveiliging, maar zit ook gewone gebruikers in de weg bij het flashen.</p>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
