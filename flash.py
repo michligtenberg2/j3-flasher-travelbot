@@ -7,8 +7,20 @@ import subprocess
 import threading
 import zipfile
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, Tk, END, ttk
+import sys
+
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QLabel,
+    QTextEdit,
+    QFileDialog,
+    QMessageBox,
+    QProgressBar,
+)
+from PyQt6.QtCore import QTimer
 
 import requests
 
@@ -37,12 +49,31 @@ logging.basicConfig(
 )
 
 
+def show_info(title, message):
+    QMessageBox.information(None, title, message)
+
+
+def show_error(title, message):
+    QMessageBox.critical(None, title, message)
+
+
+def ask_yes_no(title, message):
+    result = QMessageBox.question(
+        None,
+        title,
+        message,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
+
+
 def log(message, text_widget=None):
+    """Log a message to the log file and optionally to a QTextEdit widget."""
     logging.info(message)
     print(message)
     if text_widget:
-        text_widget.insert(END, message + '\n')
-        text_widget.see(END)
+        text_widget.append(message)
+        text_widget.ensureCursorVisible()
 
 
 def check_tool(name):
@@ -88,8 +119,8 @@ def ensure_heimdall(text):
         return True
     log('Heimdall not found.', text)
     if not IS_WINDOWS:
-        if messagebox.askyesno('Install Heimdall',
-                               'Heimdall is missing. Install via apt? (sudo required)'):
+        if ask_yes_no('Install Heimdall',
+                      'Heimdall is missing. Install via apt? (sudo required)'):
             try:
                 subprocess.run(['sudo', 'apt', 'install', '-y', 'heimdall-flash'], check=False)
             except Exception as exc:  # noqa: BLE001
@@ -137,7 +168,7 @@ def download_file(url, dest, text):
 
 def flash_recovery(img, text):
     if IS_WINDOWS:
-        messagebox.showinfo(
+        show_info(
             'Windows Detected',
             'Please use Odin to flash the recovery image manually.'
         )
@@ -146,8 +177,10 @@ def flash_recovery(img, text):
         return
     log('Flashing TWRP recovery...', text)
     subprocess.run([HEIMDALL_NAME, 'flash', '--RECOVERY', img, '--no-reboot'])
-    messagebox.showinfo('Action Required',
-                        'Recovery flashed. Boot the phone into recovery now (Vol+ Home Power).')
+    show_info(
+        'Action Required',
+        'Recovery flashed. Boot the phone into recovery now (Vol+ Home Power).'
+    )
 
 
 def sideload_zip(zip_path, text):
@@ -163,7 +196,7 @@ def install_tools(text_widget):
         ensure_heimdall(text_widget)
         log('Tool installation complete.', text_widget)
     except Exception as exc:  # noqa: BLE001
-        messagebox.showerror('Error', str(exc))
+        show_error('Error', str(exc))
         log(f'Error: {exc}', text_widget)
 
 
@@ -188,19 +221,17 @@ def open_log_file():
     elif shutil.which('xdg-open'):
         subprocess.run(['xdg-open', LOG_FILE], check=False)
     else:
-        messagebox.showinfo('Log File', f'Log located at {LOG_FILE}')
+        show_info('Log File', f'Log located at {LOG_FILE}')
 
 
 def clear_log(text_widget):
-    text_widget.delete('1.0', END)
+    text_widget.clear()
     Path(LOG_FILE).write_text('')
     log('Log cleared.', text_widget)
 
 
 def show_help():
-    win = tk.Toplevel()
-    win.title('Help')
-    ttk.Label(win, text=INSTRUCTION_TEXT, justify='left', wraplength=400).pack(padx=10, pady=10)
+    show_info('Help', INSTRUCTION_TEXT)
 
 
 def flash_recovery_only(text_widget):
@@ -215,12 +246,14 @@ def flash_recovery_only(text_widget):
             return
         recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
         download_file(profile['recovery_url'], recovery_img, text_widget)
-        messagebox.showinfo('Download Mode',
-                            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.')
+        show_info(
+            'Download Mode',
+            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.'
+        )
         flash_recovery(str(recovery_img), text_widget)
         log('Recovery flash complete.', text_widget)
     except Exception as exc:  # noqa: BLE001
-        messagebox.showerror('Error', str(exc))
+        show_error('Error', str(exc))
         log(f'Error: {exc}', text_widget)
 
 
@@ -238,28 +271,29 @@ def flash_process(text_widget, apk_path=None):
         rom_zip = CACHE_DIR / Path(profile['rom_url']).name
         download_file(profile['recovery_url'], recovery_img, text_widget)
         download_file(profile['rom_url'], rom_zip, text_widget)
-        messagebox.showinfo('Download Mode',
-                            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.')
+        show_info(
+            'Download Mode',
+            'Put the phone in Download Mode (Power+Home+Vol Down) and connect it.'
+        )
         flash_recovery(str(recovery_img), text_widget)
         sideload_zip(str(rom_zip), text_widget)
         if apk_path:
             install_apk(apk_path, text_widget)
         log('Flashing complete.', text_widget)
     except Exception as exc:  # noqa: BLE001
-        messagebox.showerror('Error', str(exc))
+        show_error('Error', str(exc))
         log(f'Error: {exc}', text_widget)
 
 
-def start_flash(text_widget, apk_var, progress):
-    apk_path = apk_var.get() if apk_var.get() else None
+def start_flash(text_widget, apk_path, progress):
 
     def run():
         try:
             flash_process(text_widget, apk_path)
         finally:
-            progress.stop()
+            QTimer.singleShot(0, lambda: progress.setVisible(False))
 
-    progress.start()
+    progress.setVisible(True)
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -269,9 +303,9 @@ def start_flash_recovery(text_widget, progress):
         try:
             flash_recovery_only(text_widget)
         finally:
-            progress.stop()
+            QTimer.singleShot(0, lambda: progress.setVisible(False))
 
-    progress.start()
+    progress.setVisible(True)
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -281,9 +315,9 @@ def start_install_tools(text_widget, progress):
         try:
             install_tools(text_widget)
         finally:
-            progress.stop()
+            QTimer.singleShot(0, lambda: progress.setVisible(False))
 
-    progress.start()
+    progress.setVisible(True)
     threading.Thread(target=run, daemon=True).start()
 
 
@@ -295,45 +329,83 @@ def check_device(text_widget):
         log('No device found.', text_widget)
 
 
-def select_apk(var):
-    path = filedialog.askopenfilename(filetypes=[('APK files', '*.apk')])
+def select_apk(var_container):
+    path, _ = QFileDialog.getOpenFileName(None, 'Select APK', '', 'APK files (*.apk)')
     if path:
-        var.set(path)
+        var_container[0] = path
+
+
+class MainWindow(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle('Travelbot Flasher')
+
+        layout = QVBoxLayout(self)
+
+        label = QLabel(INSTRUCTION_TEXT)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        self.log_box = QTextEdit()
+        self.log_box.setReadOnly(True)
+        layout.addWidget(self.log_box)
+
+        self.progress = QProgressBar()
+        self.progress.setVisible(False)
+        layout.addWidget(self.progress)
+
+        self.apk_path = [None]
+
+        btn_check_device = QPushButton('Check Device')
+        btn_check_device.clicked.connect(lambda: check_device(self.log_box))
+        layout.addWidget(btn_check_device)
+
+        btn_check_tools = QPushButton('Check Tools')
+        btn_check_tools.clicked.connect(lambda: check_tools(self.log_box))
+        layout.addWidget(btn_check_tools)
+
+        btn_install_tools = QPushButton('Install Tools')
+        btn_install_tools.clicked.connect(lambda: start_install_tools(self.log_box, self.progress))
+        layout.addWidget(btn_install_tools)
+
+        btn_flash_recovery = QPushButton('Flash Recovery Only')
+        btn_flash_recovery.clicked.connect(lambda: start_flash_recovery(self.log_box, self.progress))
+        layout.addWidget(btn_flash_recovery)
+
+        btn_select_apk = QPushButton('Select APK')
+        btn_select_apk.clicked.connect(lambda: select_apk(self.apk_path))
+        layout.addWidget(btn_select_apk)
+
+        btn_flash_all = QPushButton('Flash All')
+        btn_flash_all.clicked.connect(lambda: start_flash(self.log_box, self.apk_path[0], self.progress))
+        layout.addWidget(btn_flash_all)
+
+        btn_reboot_recovery = QPushButton('Reboot to Recovery')
+        btn_reboot_recovery.clicked.connect(lambda: reboot_device('recovery', self.log_box))
+        layout.addWidget(btn_reboot_recovery)
+
+        btn_reboot_system = QPushButton('Reboot System')
+        btn_reboot_system.clicked.connect(lambda: reboot_device('system', self.log_box))
+        layout.addWidget(btn_reboot_system)
+
+        btn_open_log = QPushButton('Open Log')
+        btn_open_log.clicked.connect(open_log_file)
+        layout.addWidget(btn_open_log)
+
+        btn_clear_log = QPushButton('Clear Log')
+        btn_clear_log.clicked.connect(lambda: clear_log(self.log_box))
+        layout.addWidget(btn_clear_log)
+
+        btn_help = QPushButton('Help')
+        btn_help.clicked.connect(show_help)
+        layout.addWidget(btn_help)
 
 
 def main():
-    root = Tk()
-    root.title('Travelbot Flasher')
-    style = ttk.Style(root)
-    if 'clam' in style.theme_names():
-        style.theme_use('clam')
-    style.configure('TButton', font=('Helvetica', 10), padding=6)
-    style.configure('TLabel', font=('Helvetica', 10))
-    root.configure(padx=10, pady=10)
-    root.resizable(False, False)
-
-    ttk.Label(root, text=INSTRUCTION_TEXT, justify='left').pack(padx=10, pady=5)
-
-    log_box = scrolledtext.ScrolledText(root, width=80, height=20)
-    log_box.pack(padx=10, pady=10)
-
-    progress = ttk.Progressbar(root, mode='indeterminate')
-    progress.pack(fill='x', padx=10, pady=5)
-
-    apk_var = tk.StringVar()
-    ttk.Button(root, text='Check Device', command=lambda: check_device(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Check Tools', command=lambda: check_tools(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Install Tools', command=lambda: start_install_tools(log_box, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Flash Recovery Only', command=lambda: start_flash_recovery(log_box, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Select APK', command=lambda: select_apk(apk_var)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Flash All', command=lambda: start_flash(log_box, apk_var, progress)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Reboot to Recovery', command=lambda: reboot_device('recovery', log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Reboot System', command=lambda: reboot_device('system', log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Open Log', command=open_log_file).pack(fill='x', pady=2)
-    ttk.Button(root, text='Clear Log', command=lambda: clear_log(log_box)).pack(fill='x', pady=2)
-    ttk.Button(root, text='Help', command=show_help).pack(fill='x', pady=2)
-
-    root.mainloop()
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
