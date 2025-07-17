@@ -23,7 +23,7 @@ This project provides a Python-based application to flash a Samsung Galaxy J3 (S
    ```
 2. Run the flasher:
    ```bash
-   python flash.py --flash --apk path/to/app.apk --root
+   python flash.py
    ```
 
-The script guides you through each step and reports progress in the terminal. All output is also written to `flasher.log`.
+The GUI shows progress in a log window and also writes all actions to `flasher.log`.
