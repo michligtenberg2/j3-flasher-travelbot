@@ -1,8 +1,8 @@
 {
   "SM-J320FN": {
-    "device": "j3xnlte",
-    "recovery_url": "https://example.com/twrp.img",
-    "rom_url": "https://example.com/lineage.zip",
-    "magisk_url": "https://example.com/magisk.zip"
+    "device": "j3lte",
+    "recovery_url": "https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img",
+    "rom_url": "https://download.lineage.microg.org/j3xnlte/lineage-18.1-20230419-microG-j3xnlte.zip",
+    "magisk_url": "https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v26.4.apk"
   }
 }
