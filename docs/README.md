@@ -4,5 +4,6 @@ These HTML pages can be viewed locally or published with GitHub Pages. Enable Pa
 
 - `index.html` – short introduction and navigation
 - `frequent-issues.html` – instructions for solving Factory Reset Protection (FRP) lock and other common problems
+- `root.html` – explains why Travelbot works without root and when you might need it
 
 The styling and behaviour are implemented in `style.css` and `script.js`.

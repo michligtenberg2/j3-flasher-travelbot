@@ -46,7 +46,8 @@ INSTRUCTION_TEXT = (
 "4. Gebruik 'Install Tools' om ADB en Heimdall te installeren indien nodig.\n"
 "5. Kies 'Auto Flash TWRP' voor automatische flashing van de recovery.\n"
 "6. Handmatig flashen kan via 'Flash TWRP' of 'Flash LineageOS'.\n"
-"7. Alle voortgang verschijnt hieronder en in flasher.log.\n"
+    "7. Alle voortgang verschijnt hieronder en in flasher.log.\n"
+    "8. Lees docs/root.html voor uitleg over root-toegang.\n"
 )
 
 IS_WINDOWS = platform.system().lower() == 'windows'
