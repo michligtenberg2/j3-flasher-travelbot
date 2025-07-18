@@ -1,3 +1,4 @@
+from typing import Optional, List
 import json
 import logging
 import logging.handlers
@@ -120,7 +121,8 @@ def root_log(message, text_widget=None):
         text_widget.append(message)
 
 
-def check_tool(name):
+def check_tool(name: str) -> Optional[str]:
+    """Check if a tool is available in the system PATH."""
     return shutil.which(name)
 
 
@@ -310,19 +312,22 @@ def flash_twrp_gui(text_widget=None):
     flash_recovery(TWRP_IMG, text_widget)
 
 
-def adb_command(args):
+def adb_command(args: List[str]) -> subprocess.CompletedProcess:
+    """Execute an ADB command with the given arguments."""
     adb_path = check_tool(ADB_NAME) or str(Path('platform-tools') / ADB_NAME)
     return subprocess.run([adb_path] + args, capture_output=True, text=True)
 
 
-def device_connected():
+def device_connected() -> bool:
+    """Check if a device is connected via ADB."""
     result = adb_command(['devices'])
     lines = result.stdout.strip().splitlines()
     devices = [l for l in lines[1:] if l.strip()]
     return len(devices) > 0
 
 
-def load_profile():
+def load_profile() -> Optional[dict]:
+    """Load device profile from configuration file."""
     if not Path(CONFIG_FILE).exists():
         return None
     with open(CONFIG_FILE, 'r') as fh:
