@@ -19,6 +19,7 @@ This project provides a Python-based application to flash a Samsung Galaxy J3 (S
 ### Root access?
 
 See the [root info](docs/root.html) page for details on when root is useful and why it is optional for Travelbot.
+For step-by-step instructions on enabling root, check the [root installation guide](docs/root-install.html).
 
 ## Directory Structure
 - `scripts/` – optional helper scripts or recovery tools
