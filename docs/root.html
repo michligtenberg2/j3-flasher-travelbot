@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Is root nodig voor Travelbot?">
+  <title>Heb ik root nodig voor Travelbot?</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="frequent-issues.html">Frequent issues</a>
+    <a href="root.html" class="active">Root info</a>
+  </nav>
+  <div class="container">
+    <h1>Heb ik root nodig voor Travelbot?</h1>
+    <p>Nee – <strong>voor Travelbot is rooten niet noodzakelijk</strong>. Je kunt vrijwel alle functies gebruiken zonder roottoegang.</p>
+    <h2>✅ Wat werkt zonder root?</h2>
+    <table>
+      <tr><th>Functie</th><th>Vereist root?</th></tr>
+      <tr><td>📍 Locatie uitlezen via GPS</td><td>❌ Nee</td></tr>
+      <tr><td>🔊 Tekst-naar-spraak uitvoeren</td><td>❌ Nee</td></tr>
+      <tr><td>🌐 Reacties ophalen via backend (AI)</td><td>❌ Nee</td></tr>
+      <tr><td>🎵 Reacties afspelen via TTS of MP3</td><td>❌ Nee</td></tr>
+      <tr><td>🧭 In foreground-service draaien</td><td>❌ Nee</td></tr>
+      <tr><td>🧑‍💻 Gebruikersinterface en knoppen</td><td>❌ Nee</td></tr>
+      <tr><td>🚗 Automatisch opstarten bij boot</td><td>❌ Nee <em>(mogelijk via manifest)</em></td></tr>
+    </table>
+    <p>Travelbot is ontworpen om te draaien op oude Android-telefoons zonder root.</p>
+    <h2>🔐 Wanneer is root wél nuttig?</h2>
+    <p>Alleen als je geavanceerde systeemacties wilt zoals:</p>
+    <ul>
+      <li>Vliegtuigmodus aan/uit zetten</li>
+      <li>Andere apps afsluiten of starten</li>
+      <li>Meldingen van andere apps blokkeren</li>
+      <li>Travelbot als <strong>systeemapp</strong> installeren</li>
+      <li>TTS-engine vervangen of manipuleren op systeemniveau</li>
+    </ul>
+    <p>Voor de meeste gebruikers is dit <strong>niet nodig</strong>.</p>
+    <h2>🧠 Waarom TWRP dan wél?</h2>
+    <p>TWRP (TeamWin Recovery Project) gebruik je alleen om:</p>
+    <ul>
+      <li>LineageOS of een lichte custom ROM te installeren</li>
+      <li>Travelbot eenvoudig te installeren</li>
+      <li>FRP/OEM locks te omzeilen</li>
+      <li>Apparaten te "recyclen" voor hergebruik</li>
+    </ul>
+    <p>TWRP ≠ root, maar maakt rooten mogelijk voor wie dat wíl.</p>
+    <h2>📌 Advies</h2>
+    <blockquote>Gebruik root alleen als je <strong>weet wat je doet</strong>, of specifieke systeemtoegang nodig hebt.<br>Travelbot werkt standaard <strong>zonder root</strong>. De root-tab in de GUI is optioneel.</blockquote>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

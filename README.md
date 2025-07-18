@@ -15,6 +15,10 @@ This project provides a Python-based application to flash a Samsung Galaxy J3 (S
 - Optionally installs Magisk for root and a custom APK
 - Logs actions to `flasher.log`
 
+### Root access?
+
+See the [root info](docs/root.html) page for details on when root is useful and why it is optional for Travelbot.
+
 ## Directory Structure
 - `scripts/` – optional helper scripts or recovery tools
 - `images/` – logo or branding assets
