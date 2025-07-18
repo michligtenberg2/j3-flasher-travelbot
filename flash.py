@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QHBoxLayout,
 )
+import webbrowser
 from PyQt6.QtCore import Qt, QTimer
 
 import sys
@@ -384,6 +385,12 @@ def clear_log(text_widget):
     log('Log cleared.', text_widget)
 
 
+def open_docs():
+    """Open the local HTML documentation in the default browser."""
+    doc = Path('docs/index.html').resolve()
+    webbrowser.open(f'file://{doc}')
+
+
 def show_help():
     show_info('Help', INSTRUCTION_TEXT)
 
@@ -600,6 +607,20 @@ class MainWindow(QWidget):
         self.progress.setVisible(False)
         layout.addWidget(self.progress)
 
+        button_row = QHBoxLayout()
+
+        self.btn_check_device = QPushButton('Detecteer toestel')
+        self.btn_check_device.clicked.connect(lambda: check_device(self.log_box))
+        button_row.addWidget(self.btn_check_device)
+
+        self.btn_install_tools = QPushButton('Install Tools')
+        self.btn_install_tools.clicked.connect(
+            lambda: start_install_tools(self.log_box, self.progress)
+        )
+        button_row.addWidget(self.btn_install_tools)
+
+        layout.addLayout(button_row)
+
         self.btn_flash_twrp = QPushButton('Flash TWRP')
         self.btn_flash_twrp.clicked.connect(
             lambda: start_flash_recovery(self.log_box, self.progress)
@@ -617,6 +638,26 @@ class MainWindow(QWidget):
             lambda: install_travelbot_apk(self.log_box)
         )
         layout.addWidget(self.btn_install_apk)
+
+        other_row = QHBoxLayout()
+
+        self.btn_view_log = QPushButton('Bekijk log')
+        self.btn_view_log.clicked.connect(open_log_file)
+        other_row.addWidget(self.btn_view_log)
+
+        self.btn_clear_log = QPushButton('Leeg log')
+        self.btn_clear_log.clicked.connect(lambda: clear_log(self.log_box))
+        other_row.addWidget(self.btn_clear_log)
+
+        self.btn_help = QPushButton('Help')
+        self.btn_help.clicked.connect(show_help)
+        other_row.addWidget(self.btn_help)
+
+        self.btn_docs = QPushButton('Open Handleiding')
+        self.btn_docs.clicked.connect(open_docs)
+        other_row.addWidget(self.btn_docs)
+
+        layout.addLayout(other_row)
 
         self.tabs.addTab(tab, '📲 Flasher')
 
@@ -652,9 +693,13 @@ class MainWindow(QWidget):
             self.btn_flash_twrp,
             self.btn_flash_rom,
             self.btn_install_apk,
+            self.btn_check_device,
+            self.btn_install_tools,
             self.btn_dl_magisk,
             self.btn_flash_magisk,
             self.btn_check_root,
+            self.btn_view_log,
+            self.btn_clear_log,
         ]:
             btn.setEnabled(connected)
 

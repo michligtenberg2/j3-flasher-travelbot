@@ -11,7 +11,7 @@ This project provides a Python-based application to flash a Samsung Galaxy J3 (S
 - Button to install ADB and check for Heimdall
 - Extra buttons for rebooting, viewing logs, and clearing the log
 - Built-in help window with step-by-step instructions
-- Uses a simple ttk theme for a cleaner interface
+- Quick links to the bundled HTML documentation
 - Optionally installs Magisk for root and a custom APK
 - Logs actions to `flasher.log`
 
