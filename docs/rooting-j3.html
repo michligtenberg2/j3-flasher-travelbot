@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <title>Rooting Samsung Galaxy J3</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="frequent-issues.html">Frequent issues</a>
+    <a href="rooting-j3.html" class="active">Rooting</a>
+  </nav>
+  <div class="container">
+    <h1>🔓 Samsung Galaxy J3 Rooten</h1>
+    <p>Root-toegang is optioneel maar vereist voor diepere systeemtoegang. Gebruik Magisk v23.0 dat geen boot.img patching nodig heeft.</p>
+    <div class="step">
+      <h3 class="toggle">1. Installeer TWRP</h3>
+      <p>Flash TWRP via de flasher of met Heimdall:</p>
+      <pre><code>heimdall flash --RECOVERY twrp-j3lte.img --no-reboot</code></pre>
+    </div>
+    <div class="step">
+      <h3 class="toggle">2. Download Magisk</h3>
+      <p>Gebruik de knop <em>Download Magisk.zip</em> in de tool of download handmatig: <code>Magisk-v23.0.zip</code>.</p>
+    </div>
+    <div class="step">
+      <h3 class="toggle">3. Flash Magisk</h3>
+      <ol>
+        <li>Kopieer het zip-bestand naar <code>/sdcard/</code> (knop "Flash Magisk via TWRP" doet dit automatisch).</li>
+        <li>Boot naar TWRP.</li>
+        <li>Kies <strong>Install</strong> → <code>Magisk-v23.0.zip</code>.</li>
+        <li>Swipe om te flashen en reboot daarna het systeem.</li>
+      </ol>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

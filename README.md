@@ -40,3 +40,13 @@ The interface includes buttons to check devices and tools, flash only the recove
 2. Power off the phone, then hold **Power + Home + Volume Down** to enter **Download Mode**. Press **Volume Up** to continue.
 3. Connect the device via USB before starting the flash process.
 
+## Rooting with Magisk
+
+To obtain root access on the Galaxy J3 (SM-J320FN) you need TWRP installed first.
+From the flasher tool open the **🔓 Geef Root-toegang** tab and use the
+**Download Magisk.zip** button to fetch `Magisk-v23.0.zip` if you don't already
+have it. Push the zip to the phone with **Flash Magisk via TWRP** and then boot
+to TWRP manually. In TWRP choose <code>Install → Magisk-v23.0.zip</code> and
+flash the file. Reboot Android and verify the root status using the
+"Controleer Rootstatus" button or by running `adb shell su -v`.
+
