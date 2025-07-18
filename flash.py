@@ -18,8 +18,9 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QLabel,
+    QTabWidget,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 import sys
 
@@ -30,6 +31,12 @@ CACHE_DIR = Path('cache')
 LOG_FILE = 'flasher.log'
 TWRP_URL = 'https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img'
 TWRP_IMG = Path('twrp-j3lte.img')
+DOWNLOADS_DIR = Path('downloads')
+MAGISK_URL = (
+    'https://github.com/topjohnwu/Magisk/releases/download/v23.0/Magisk-v23.0.zip'
+)
+MAGISK_ZIP = DOWNLOADS_DIR / 'Magisk-v23.0.zip'
+TRAVELBOT_APK = Path('travelbot.apk')
 
 INSTRUCTION_TEXT = (
     "1. Enable USB debugging and OEM unlock in Developer Options.\n"
@@ -486,6 +493,68 @@ def check_device(text_widget):
         log('No device found.', text_widget)
 
 
+def install_travelbot_apk(text_widget):
+    """Install the bundled travelbot.apk if present."""
+    if not TRAVELBOT_APK.exists():
+        show_error('Bestand ontbreekt', f'{TRAVELBOT_APK} niet gevonden')
+        log('travelbot.apk missing', text_widget)
+        return
+    install_apk(str(TRAVELBOT_APK), text_widget)
+    log('travelbot.apk installed.', text_widget)
+
+
+def download_magisk(text_widget):
+    """Download Magisk if the ZIP is not already present."""
+    DOWNLOADS_DIR.mkdir(exist_ok=True)
+    if MAGISK_ZIP.exists():
+        log('Magisk.zip already exists.', text_widget)
+        return
+    log(f'Downloading Magisk from {MAGISK_URL}', text_widget)
+    resp = requests.get(MAGISK_URL, stream=True)
+    if resp.status_code != 200:
+        show_error('Download Fout', 'Kon Magisk.zip niet downloaden')
+        return
+    with open(MAGISK_ZIP, 'wb') as fh:
+        for chunk in resp.iter_content(chunk_size=8192):
+            fh.write(chunk)
+    log('Magisk download complete.', text_widget)
+
+
+def flash_magisk_via_twrp(text_widget):
+    """Push Magisk ZIP to the device and instruct user to flash via TWRP."""
+    if not MAGISK_ZIP.exists():
+        show_error('Bestand ontbreekt', 'Download eerst Magisk.zip')
+        return
+    log('Pushing Magisk.zip to /sdcard/ ...', text_widget)
+    result = adb_command(['push', str(MAGISK_ZIP), '/sdcard/'])
+    log(result.stdout.strip(), text_widget)
+    show_info(
+        'Magisk Flash',
+        (
+            'Magisk.zip staat op /sdcard/.\n'
+            'Boot naar TWRP en flash het bestand handmatig via Install -> Magisk.zip.\n'
+            'Als jouw TWRP adb sideload ondersteunt kun je ook `adb sideload` gebruiken.'
+        ),
+    )
+
+
+def check_root_status(text_widget):
+    """Check whether the connected device has root access."""
+    log('Checking root status...', text_widget)
+    result = adb_command(['shell', 'su', '-v'])
+    if result.returncode == 0 and result.stdout.strip():
+        log(f'Root aanwezig: {result.stdout.strip()}', text_widget)
+        show_info('Root Status', f'Root gevonden: {result.stdout.strip()}')
+        return
+    result = adb_command(['shell', 'which', 'su'])
+    if result.returncode == 0 and result.stdout.strip():
+        log('su binary gevonden', text_widget)
+        show_info('Root Status', 'su binary gevonden maar geen uitvoer van su -v.')
+    else:
+        log('Geen roottoegang gevonden', text_widget)
+        show_info('Root Status', 'Geen roottoegang gedetecteerd.')
+
+
 
 
 class MainWindow(QWidget):
@@ -495,46 +564,113 @@ class MainWindow(QWidget):
         self.setMinimumSize(600, 400)
         self.setStyleSheet('background-color: #E6E6FA;')
 
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
 
         title = QLabel('📱 Travelbot Flasher')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setFont(QtGui.QFont('Helvetica', 16, QtGui.QFont.Weight.Bold))
-        layout.addWidget(title)
+        main_layout.addWidget(title)
+
+        self.status_label = QLabel('')
+        main_layout.addWidget(self.status_label)
+
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs, 1)
+
+        # --- Flasher tab ---
+        flasher_tab = QWidget()
+        flasher_layout = QVBoxLayout(flasher_tab)
 
         instructions = QLabel(INSTRUCTION_TEXT)
         instructions.setWordWrap(True)
-        layout.addWidget(instructions)
+        flasher_layout.addWidget(instructions)
 
+        self.btn_detect = QPushButton('Detecteer Toestel')
+        self.btn_detect.clicked.connect(lambda: check_device(self.log_box))
+        flasher_layout.addWidget(self.btn_detect)
+
+        self.btn_flash_twrp = QPushButton('Flash TWRP')
+        self.btn_flash_twrp.clicked.connect(
+            lambda: start_flash_recovery(self.log_box, self.progress)
+        )
+        flasher_layout.addWidget(self.btn_flash_twrp)
+
+        self.btn_flash_rom = QPushButton('Flash LineageOS')
+        self.btn_flash_rom.clicked.connect(
+            lambda: start_flash(self.log_box, None, self.progress)
+        )
+        flasher_layout.addWidget(self.btn_flash_rom)
+
+        self.btn_install_apk = QPushButton('Install travelbot.apk')
+        self.btn_install_apk.clicked.connect(
+            lambda: install_travelbot_apk(self.log_box)
+        )
+        flasher_layout.addWidget(self.btn_install_apk)
+
+        self.tabs.addTab(flasher_tab, '📲 Flasher')
+
+        # --- Root tab ---
+        root_tab = QWidget()
+        root_layout = QVBoxLayout(root_tab)
+        root_info = QLabel(
+            'Root-toegang is optioneel maar vereist voor diepere systeemtoegang.'
+        )
+        root_info.setWordWrap(True)
+        root_layout.addWidget(root_info)
+
+        self.btn_download_magisk = QPushButton('Download Magisk.zip')
+        self.btn_download_magisk.clicked.connect(
+            lambda: download_magisk(self.log_box)
+        )
+        root_layout.addWidget(self.btn_download_magisk)
+
+        self.btn_flash_magisk = QPushButton('Flash Magisk via TWRP')
+        self.btn_flash_magisk.clicked.connect(
+            lambda: flash_magisk_via_twrp(self.log_box)
+        )
+        root_layout.addWidget(self.btn_flash_magisk)
+
+        self.btn_check_root = QPushButton('Controleer rootstatus')
+        self.btn_check_root.clicked.connect(
+            lambda: check_root_status(self.log_box)
+        )
+        root_layout.addWidget(self.btn_check_root)
+
+        self.tabs.addTab(root_tab, '🔓 Geef Root-toegang')
+
+        # Shared log and progress bar
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
-        layout.addWidget(self.log_box, 1)
+        main_layout.addWidget(self.log_box)
 
         self.progress = QProgressBar()
         self.progress.setVisible(False)
-        layout.addWidget(self.progress)
+        main_layout.addWidget(self.progress)
 
-        buttons = [
-            ('Detecteer Toestel', lambda: check_device(self.log_box)),
-            ('Detect Download Mode', lambda: detect_device(self.log_box)),
-            ('Check Heimdall', lambda: check_heimdall(self.log_box)),
-            ('Install Tools', lambda: start_install_tools(self.log_box, self.progress)),
-            ('Auto Flash TWRP', lambda: start_auto_flash(self.log_box, self.progress)),
-            ('Download ROM', lambda: download_rom(self.log_box)),
-            ('Flash TWRP', lambda: start_flash_recovery(self.log_box, self.progress)),
-            ('Flash LineageOS', lambda: start_flash(self.log_box, None, self.progress)),
-            ('Install APK', lambda: install_apk_prompt(self.log_box)),
-            ('Reboot to Recovery', lambda: reboot_device('recovery', self.log_box)),
-            ('Reboot System', lambda: reboot_device('system', self.log_box)),
-            ('Open Log', open_log_file),
-            ('Clear Log', lambda: clear_log(self.log_box)),
-            ('Help', show_help),
+        self.device_buttons = [
+            self.btn_flash_twrp,
+            self.btn_flash_rom,
+            self.btn_install_apk,
+            self.btn_download_magisk,
+            self.btn_flash_magisk,
+            self.btn_check_root,
         ]
 
-        for text, func in buttons:
-            btn = QPushButton(text)
-            btn.clicked.connect(func)
-            layout.addWidget(btn)
+        self.timer = QTimer(self)
+        self.timer.setInterval(3000)
+        self.timer.timeout.connect(self.update_device_status)
+        self.timer.start()
+        self.update_device_status()
+
+    def update_device_status(self):
+        if device_connected():
+            self.status_label.setText('📱 Verbonden')
+            for b in self.device_buttons:
+                b.setEnabled(True)
+        else:
+            self.status_label.setText('⚠️ Geen toestel verbonden')
+            for b in self.device_buttons:
+                b.setEnabled(False)
 
 
 def main():
