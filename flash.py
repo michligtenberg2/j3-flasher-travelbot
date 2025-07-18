@@ -1,5 +1,6 @@
 import json
 import logging
+import logging.handlers
 import os
 import platform
 import shutil
@@ -41,6 +42,11 @@ MAGISK_URL = (
 MAGISK_ZIP = DOWNLOADS_DIR / 'Magisk-v23.0.zip'
 TRAVELBOT_APK = Path('travelbot.apk')
 
+# Version information
+__version__ = "1.0.0"
+__author__ = "michligtenberg2"
+__description__ = "PyQt6-based GUI for flashing Samsung Galaxy J3 with LineageOS"
+
 INSTRUCTION_TEXT = (
     "1. Enable USB debugging and OEM unlock in Developer Options.\n"
     "2. Boot the phone into Download Mode (Power+Home+Vol Down, then Vol Up).\n"
@@ -56,11 +62,33 @@ IS_WINDOWS = platform.system().lower() == 'windows'
 ADB_NAME = 'adb.exe' if IS_WINDOWS else 'adb'
 HEIMDALL_NAME = 'heimdall.exe' if IS_WINDOWS else 'heimdall'
 
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Configure logging with rotation
+def setup_logging():
+    """Set up logging with rotation and proper formatting."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Clear any existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Create rotating file handler (5MB max, keep 3 backup files)
+    handler = logging.handlers.RotatingFileHandler(
+        LOG_FILE, maxBytes=5*1024*1024, backupCount=3
+    )
+    handler.setLevel(logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    
+    logger.addHandler(handler)
+
+# Initialize logging
+setup_logging()
 
 
 def show_info(title, message):
@@ -326,13 +354,26 @@ def sideload_zip(zip_path, text):
 
 
 def install_tools(text_widget):
+    """Install required tools (ADB and Heimdall) with proper error handling."""
     try:
         ensure_adb(text_widget)
         ensure_heimdall(text_widget)
         log('Tool installation complete.', text_widget)
-    except Exception as exc:  # noqa: BLE001
-        show_error('Error', str(exc))
-        log(f'Error: {exc}', text_widget)
+    except (requests.RequestException, ConnectionError) as exc:
+        error_msg = f'Network error during tool installation: {exc}'
+        show_error('Network Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except (OSError, IOError) as exc:
+        error_msg = f'File system error during tool installation: {exc}'
+        show_error('File System Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except Exception as exc:
+        error_msg = f'Unexpected error during tool installation: {exc}'
+        show_error('Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
 
 
 def check_tools(text_widget):
@@ -341,18 +382,32 @@ def check_tools(text_widget):
 
 
 def download_rom(text_widget):
-    """Download only the LineageOS ROM."""
+    """Download only the LineageOS ROM with improved error handling."""
     try:
         profile = load_profile()
         if not profile:
-            log('Device profile not found.', text_widget)
+            error_msg = 'Device profile not found in device_config.json'
+            logging.warning(error_msg)
+            log(error_msg, text_widget)
             return
         rom_zip = CACHE_DIR / Path(profile['rom_url']).name
         download_file(profile['rom_url'], rom_zip, text_widget)
         log('ROM download complete.', text_widget)
-    except Exception as exc:  # noqa: BLE001
-        show_error('Error', str(exc))
-        log(f'Error: {exc}', text_widget)
+    except (requests.RequestException, ConnectionError) as exc:
+        error_msg = f'Network error during ROM download: {exc}'
+        show_error('Network Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except (OSError, IOError) as exc:
+        error_msg = f'File system error during ROM download: {exc}'
+        show_error('File System Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except Exception as exc:
+        error_msg = f'Unexpected error during ROM download: {exc}'
+        show_error('Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
 
 
 def install_apk(apk, text):
@@ -412,6 +467,7 @@ def show_help():
 
 
 def flash_recovery_only(text_widget):
+    """Flash recovery only with improved error handling."""
     try:
         ensure_adb(text_widget)
         if not device_connected():
@@ -419,7 +475,9 @@ def flash_recovery_only(text_widget):
             return
         profile = load_profile()
         if not profile:
-            log('Device profile not found.', text_widget)
+            error_msg = 'Device profile not found in device_config.json'
+            logging.warning(error_msg)
+            log(error_msg, text_widget)
             return
         recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
         download_file(profile['recovery_url'], recovery_img, text_widget)
@@ -429,12 +487,25 @@ def flash_recovery_only(text_widget):
         )
         flash_recovery(str(recovery_img), text_widget)
         log('Recovery flash complete.', text_widget)
-    except Exception as exc:  # noqa: BLE001
-        show_error('Error', str(exc))
-        log(f'Error: {exc}', text_widget)
+    except (requests.RequestException, ConnectionError) as exc:
+        error_msg = f'Network error during recovery flash: {exc}'
+        show_error('Network Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except (OSError, IOError) as exc:
+        error_msg = f'File system error during recovery flash: {exc}'
+        show_error('File System Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except Exception as exc:
+        error_msg = f'Unexpected error during recovery flash: {exc}'
+        show_error('Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
 
 
 def flash_process(text_widget, apk_path=None):
+    """Main flash process with improved error handling."""
     try:
         ensure_adb(text_widget)
         if not device_connected():
@@ -442,7 +513,9 @@ def flash_process(text_widget, apk_path=None):
             return
         profile = load_profile()
         if not profile:
-            log('Device profile not found.', text_widget)
+            error_msg = 'Device profile not found in device_config.json'
+            logging.warning(error_msg)
+            log(error_msg, text_widget)
             return
         recovery_img = CACHE_DIR / Path(profile['recovery_url']).name
         rom_zip = CACHE_DIR / Path(profile['rom_url']).name
@@ -457,9 +530,21 @@ def flash_process(text_widget, apk_path=None):
         if apk_path:
             install_apk(apk_path, text_widget)
         log('Flashing complete.', text_widget)
-    except Exception as exc:  # noqa: BLE001
-        show_error('Error', str(exc))
-        log(f'Error: {exc}', text_widget)
+    except (requests.RequestException, ConnectionError) as exc:
+        error_msg = f'Network error during flash process: {exc}'
+        show_error('Network Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except (OSError, IOError) as exc:
+        error_msg = f'File system error during flash process: {exc}'
+        show_error('File System Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
+    except Exception as exc:
+        error_msg = f'Unexpected error during flash process: {exc}'
+        show_error('Error', error_msg)
+        logging.error(error_msg)
+        log(error_msg, text_widget)
 
 
 def start_flash(text_widget, apk_path, progress):
@@ -592,13 +677,13 @@ def check_root_status(text_widget, status_label=None):
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('📱 Travelbot Flasher')
+        self.setWindowTitle(f'📱 Travelbot Flasher v{__version__}')
         self.setMinimumSize(600, 400)
         self.setStyleSheet('background-color: #E6E6FA;')
 
         main_layout = QVBoxLayout(self)
 
-        title = QLabel('📱 Travelbot Flasher')
+        title = QLabel(f'📱 Travelbot Flasher v{__version__}')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setFont(QtGui.QFont('Helvetica', 16, QtGui.QFont.Weight.Bold))
         main_layout.addWidget(title)

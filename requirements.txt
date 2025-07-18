@@ -1,2 +1,2 @@
-requests
-PyQt6
+requests>=2.25.0,<3.0.0
+PyQt6>=6.4.0,<7.0.0
