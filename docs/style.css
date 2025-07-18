@@ -1,12 +1,12 @@
 body {
   font-family: Arial, sans-serif;
   line-height: 1.6;
-  background-color: #f9f9f9;
-  color: #333;
+  background-color: #7B68EE;
+  color: #FFFFFF;
 }
 
 nav {
-  background: #333;
+  background: #5A2CA0;
   padding: 10px;
   text-align: center;
 }
@@ -25,13 +25,14 @@ nav a.active {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-  background-color: #fff;
+  background-color: #f4ecff;
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 h1 {
   text-align: center;
+  color: #FFFFFF;
 }
 
 blockquote {
