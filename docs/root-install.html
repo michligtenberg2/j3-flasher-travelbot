@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="Root installeren via de Travelbot GUI">
+  <title>Travelbot Root Installatiegids</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="frequent-issues.html">Frequent issues</a>
+    <a href="root.html">Root info</a>
+    <a href="root-install.html" class="active">Root installatie</a>
+  </nav>
+  <div class="container">
+    <h1>🔓 Travelbot Root Installatiegids (GUI-versie)</h1>
+    <p>Deze gids laat je stap voor stap zien hoe je roottoegang installeert op je Samsung Galaxy J3 (SM-J320FN) via de Travelbot Flash Tool met grafische interface.</p>
+
+    <div class="step">
+      <h3 class="toggle">1. Open de Travelbot Flash Tool</h3>
+      <ul>
+        <li>Start het programma <code>flash_gui_tabs.py</code></li>
+        <li>Ga naar het tabblad <strong>🔓 Root</strong></li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">2. Download Magisk v23.0</h3>
+      <p>Klik op:</p>
+      <pre><code>[ Download Magisk v23.0 ]</code></pre>
+      <p>✔️ De tool downloadt automatisch het ZIP-bestand en slaat het op in <code>downloads/</code>.</p>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">3. Push Magisk naar je toestel</h3>
+      <p>Klik op:</p>
+      <pre><code>[ Flash Magisk via TWRP ]</code></pre>
+      <p>✔️ De tool stuurt het ZIP-bestand via ADB naar <code>/sdcard/Magisk-v23.0.zip</code>.</p>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">4. Herstart naar TWRP Recovery</h3>
+      <p>Klik op:</p>
+      <pre><code>[ Reboot naar TWRP ]</code></pre>
+      <p>📱 Je toestel zal opnieuw opstarten in TWRP-recovery (houd Volume Up + Home + Power ingedrukt als nodig).</p>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">5. Flash Magisk in TWRP</h3>
+      <p>Handmatig op je toestel in TWRP:</p>
+      <ol>
+        <li>Tik op <code>Install</code></li>
+        <li>Navigeer naar <code>/sdcard/</code></li>
+        <li>Selecteer <code>Magisk-v23.0.zip</code></li>
+        <li>Swipe om te flashen</li>
+        <li>Reboot naar Android</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3 class="toggle">6. Controleer rootstatus</h3>
+      <p>Na herstart, terug in de Travelbot GUI:</p>
+      <p>Klik op:</p>
+      <pre><code>[ Controleer rootstatus ]</code></pre>
+      <p>✔️ De tool checkt via ADB of het <code>su</code>-commando beschikbaar is.</p>
+      <ul>
+        <li>✅ Root actief: "Root is correct geïnstalleerd"</li>
+        <li>❌ Geen root: "Magisk niet gedetecteerd"</li>
+      </ul>
+    </div>
+
+    <h2>ℹ️ Root is optioneel</h2>
+    <p>Travelbot werkt <strong>volledig zonder root</strong>. Root is alleen nodig als je extra systeemcontrole of diepte-integratie wilt.</p>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
