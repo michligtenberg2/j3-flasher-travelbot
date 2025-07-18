@@ -31,6 +31,7 @@ import requests
 CONFIG_FILE = 'device_config.json'
 CACHE_DIR = Path('cache')
 LOG_FILE = 'flasher.log'
+ROOT_LOG_FILE = 'root.log'
 TWRP_URL = 'https://eu.dl.twrp.me/j3lte/twrp-3.7.0_9-0-j3lte.img'
 TWRP_IMG = Path('twrp-j3lte.img')
 DOWNLOADS_DIR = Path('downloads')
@@ -77,6 +78,15 @@ def ask_yes_no(title, message):
 def log(message, text_widget=None):
     """Log a message to the log file and optionally to the GUI log box."""
     logging.info(message)
+    print(message)
+    if text_widget:
+        text_widget.append(message)
+
+
+def root_log(message, text_widget=None):
+    """Write a log line to root.log and optionally to the GUI."""
+    with open(ROOT_LOG_FILE, 'a') as fh:
+        fh.write(message + "\n")
     print(message)
     if text_widget:
         text_widget.append(message)
@@ -370,6 +380,12 @@ def reboot_device(mode, text):
     adb_command(['reboot', mode])
 
 
+def reboot_to_recovery(text_widget):
+    """Reboot the connected device directly into recovery mode."""
+    root_log('Rebooting device to recovery...', text_widget)
+    adb_command(['reboot', 'recovery'])
+
+
 def open_log_file():
     if IS_WINDOWS:
         os.startfile(LOG_FILE)
@@ -514,9 +530,9 @@ def download_magisk(text_widget):
     """Download Magisk zip if not already present."""
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     if MAGISK_ZIP.exists():
-        log(f'{MAGISK_ZIP} already exists, skipping download', text_widget)
+        root_log(f'{MAGISK_ZIP} already exists, skipping download', text_widget)
         return MAGISK_ZIP
-    log(f'Downloading Magisk from {MAGISK_URL}', text_widget)
+    root_log(f'Downloading Magisk from {MAGISK_URL}', text_widget)
     resp = requests.get(MAGISK_URL, stream=True)
     if resp.status_code != 200:
         show_error('Download Failed', 'Failed to download Magisk')
@@ -524,7 +540,7 @@ def download_magisk(text_widget):
     with open(MAGISK_ZIP, 'wb') as fh:
         for chunk in resp.iter_content(chunk_size=8192):
             fh.write(chunk)
-    log('Magisk download complete.', text_widget)
+    root_log('Magisk download complete.', text_widget)
     return MAGISK_ZIP
 
 
@@ -532,37 +548,43 @@ def push_magisk(text_widget):
     """Push Magisk.zip to /sdcard and instruct the user to flash via TWRP."""
     ensure_adb(text_widget)
     if not device_connected():
-        log('No device connected.', text_widget)
+        root_log('No device connected.', text_widget)
         return
     magisk = download_magisk(text_widget)
     if not magisk:
         return
     dest = '/sdcard/Magisk-v23.0.zip'
-    log(f'Pushing {magisk} to {dest}', text_widget)
+    root_log(f'Pushing {magisk} to {dest}', text_widget)
     adb_command(['push', str(magisk), dest])
     show_info(
         'Magisk Klaar',
         (
             'Magisk.zip is gekopieerd naar het toestel.\n'
-            'Boot in TWRP en flash het ZIP-bestand handmatig via Install.'
+            '1. Reboot naar TWRP.\n'
+            '2. Kies Install en selecteer de Magisk ZIP.\n'
+            '3. Reboot system.'
         ),
     )
 
 
-def check_root_status(text_widget):
+def check_root_status(text_widget, status_label=None):
+    """Check if the connected device has root access."""
     ensure_adb(text_widget)
     if not device_connected():
-        log('No device connected.', text_widget)
-        return
-    result = adb_command(['shell', 'su', '-v'])
-    if result.returncode == 0 and result.stdout.strip():
-        log(f'Root detected: {result.stdout.strip()}', text_widget)
-        return
+        root_log('No device connected.', text_widget)
+        if status_label:
+            status_label.setText('❌ Geen toestel')
+        return False
     result = adb_command(['shell', 'which', 'su'])
     if result.returncode == 0 and result.stdout.strip():
-        log('su binary present but version unknown', text_widget)
-    else:
-        log('Device not rooted.', text_widget)
+        root_log('✅ Root gedetecteerd', text_widget)
+        if status_label:
+            status_label.setText('✅ Root aanwezig')
+        return True
+    root_log('❌ Geen rootrechten', text_widget)
+    if status_label:
+        status_label.setText('❌ Geen root')
+    return False
 
 
 
@@ -583,6 +605,7 @@ class MainWindow(QWidget):
 
         self.tabs = QTabWidget()
         main_layout.addWidget(self.tabs, 1)
+        self.tabs.currentChanged.connect(self.on_tab_changed)
 
         self.init_flasher_tab()
         self.init_root_tab()
@@ -665,9 +688,12 @@ class MainWindow(QWidget):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
-        desc = QLabel('Root-toegang is optioneel maar vereist voor diepere systeemtoegang.')
+        desc = QLabel('Root-toegang is optioneel voor Travelbot, alleen nodig voor diepe systeemtoegang.')
         desc.setWordWrap(True)
         layout.addWidget(desc)
+
+        self.root_status = QLabel('Onbekend')
+        layout.addWidget(self.root_status)
 
         self.root_log = QTextEdit()
         self.root_log.setReadOnly(True)
@@ -677,15 +703,19 @@ class MainWindow(QWidget):
         self.btn_dl_magisk.clicked.connect(lambda: download_magisk(self.root_log))
         layout.addWidget(self.btn_dl_magisk)
 
-        self.btn_flash_magisk = QPushButton('Flash Magisk via TWRP')
+        self.btn_flash_magisk = QPushButton('Zet Magisk.zip op toestel')
         self.btn_flash_magisk.clicked.connect(lambda: push_magisk(self.root_log))
         layout.addWidget(self.btn_flash_magisk)
 
+        self.btn_reboot_recovery = QPushButton('Reboot naar Recovery')
+        self.btn_reboot_recovery.clicked.connect(lambda: reboot_to_recovery(self.root_log))
+        layout.addWidget(self.btn_reboot_recovery)
+
         self.btn_check_root = QPushButton('Check Rootstatus')
-        self.btn_check_root.clicked.connect(lambda: check_root_status(self.root_log))
+        self.btn_check_root.clicked.connect(lambda: check_root_status(self.root_log, self.root_status))
         layout.addWidget(self.btn_check_root)
 
-        self.tabs.addTab(tab, '🔓 Geef Root-toegang')
+        self.root_tab_index = self.tabs.addTab(tab, '🔓 Root')
 
     def update_button_states(self):
         connected = device_connected()
@@ -697,11 +727,16 @@ class MainWindow(QWidget):
             self.btn_install_tools,
             self.btn_dl_magisk,
             self.btn_flash_magisk,
+            self.btn_reboot_recovery,
             self.btn_check_root,
             self.btn_view_log,
             self.btn_clear_log,
         ]:
             btn.setEnabled(connected)
+
+    def on_tab_changed(self, index):
+        if index == getattr(self, 'root_tab_index', -1):
+            check_root_status(self.root_log, self.root_status)
 
 
 def main():

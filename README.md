@@ -14,6 +14,7 @@ This project provides a Python-based application to flash a Samsung Galaxy J3 (S
 - Quick links to the bundled HTML documentation
 - Optionally installs Magisk for root and a custom APK
 - Logs actions to `flasher.log`
+- Root-tab acties loggen afzonderlijk naar `root.log`
 
 ### Root access?
 
@@ -35,7 +36,8 @@ See the [root info](docs/root.html) page for details on when root is useful and 
    python flash.py
    ```
 
-The GUI shows progress in a log window and also writes all actions to `flasher.log`.
+The GUI shows progress in a log window and writes actions to `flasher.log`.
+Root-specifieke stappen worden vastgelegd in `root.log`.
 The interface includes buttons to check devices and tools, flash only the recovery or the full ROM, reboot the phone, view or clear the log file, and open a help window with detailed instructions. When Heimdall is missing on Linux, the application can run `sudo apt install heimdall-flash` for you after confirmation.
 
 ## Preparing the Phone
