@@ -10,14 +10,19 @@ from pathlib import Path
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtWidgets import (
     QApplication,
+    QMainWindow,
     QWidget,
     QVBoxLayout,
+    QGridLayout,
     QPushButton,
     QTextEdit,
     QFileDialog,
     QMessageBox,
     QProgressBar,
     QLabel,
+    QMenuBar,
+    QMenu,
+    QAction,
 )
 from PyQt6.QtCore import Qt
 
@@ -488,14 +493,16 @@ def check_device(text_widget):
 
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('📱 Travelbot Flasher')
         self.setMinimumSize(600, 400)
-        self.setStyleSheet('background-color: #E6E6FA;')
+        self.setStyleSheet('background-color: #7B68EE; color: #FFFFFF;')
 
-        layout = QVBoxLayout(self)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
 
         title = QLabel('📱 Travelbot Flasher')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -514,6 +521,27 @@ class MainWindow(QWidget):
         self.progress.setVisible(False)
         layout.addWidget(self.progress)
 
+        menubar = self.menuBar()
+        menubar.setStyleSheet('background-color: #5A2CA0; color: #FFFFFF;')
+        file_menu = menubar.addMenu('File')
+        edit_menu = menubar.addMenu('Edit')
+        help_menu = menubar.addMenu('Help')
+
+        open_action = QAction('Open Log', self)
+        open_action.triggered.connect(open_log_file)
+        file_menu.addAction(open_action)
+        exit_action = QAction('Exit', self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+
+        clear_action = QAction('Clear Log', self)
+        clear_action.triggered.connect(lambda: clear_log(self.log_box))
+        edit_menu.addAction(clear_action)
+
+        help_action = QAction('Help', self)
+        help_action.triggered.connect(show_help)
+        help_menu.addAction(help_action)
+
         buttons = [
             ('Detecteer Toestel', lambda: check_device(self.log_box)),
             ('Detect Download Mode', lambda: detect_device(self.log_box)),
@@ -531,10 +559,13 @@ class MainWindow(QWidget):
             ('Help', show_help),
         ]
 
-        for text, func in buttons:
+        grid = QGridLayout()
+        layout.addLayout(grid)
+        for idx, (text, func) in enumerate(buttons):
             btn = QPushButton(text)
             btn.clicked.connect(func)
-            layout.addWidget(btn)
+            row, col = divmod(idx, 2)
+            grid.addWidget(btn, row, col)
 
 
 def main():
